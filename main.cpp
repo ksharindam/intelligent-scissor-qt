@@ -40,7 +40,7 @@ Window:: getGradientMap()
             int x = (j-1) * 3 + 1;
 
             //x,y
-            tmp_img.setPixel(x,y, img.pixel(j, i));
+            //tmp_img.setPixel(x,y, img.pixel(j, i)); // Where is it used?
 
             //Dlink
             //x-1,y-1
@@ -134,40 +134,41 @@ Window:: getGradientMap()
     qDebug() << "gradient maxD =" << maxD;
 
     //update cost
-    double a = 1.0;
+    //double a = 1.0;
     for(int i = 1 ;i < image.height() - 1; i++)
         for(int j = 1; j < image.width() - 1; j++)
         {
             int y = (i-1) * 3 + 1;
             int x = (j-1) * 3 + 1;
-            tmp_img.setPixel(x,y, qRgb(255, 255, 255));
+            //tmp_img.setPixel(x,y, qRgb(255, 255, 255));
             int clr;
 
-            clr = (maxD - qRed(tmp_img.pixel(x-1,y-1))) * 1.414 * a;
+            clr = (maxD - qRed(tmp_img.pixel(x-1,y-1))) * 1.414;
             tmp_img.setPixel(x-1,y-1, qRgb(clr,clr,clr));
 
-            clr = (maxD - qGreen(tmp_img.pixel(x+1,y-1))) * 1.414 * a;
+            clr = (maxD - qGreen(tmp_img.pixel(x+1,y-1))) * 1.414;
             tmp_img.setPixel(x+1,y-1, qRgb(clr, clr, clr));
 
-            clr = (maxD - qGreen(tmp_img.pixel(x-1,y+1))) * 1.414 * a;
+            clr = (maxD - qGreen(tmp_img.pixel(x-1,y+1))) * 1.414;
             tmp_img.setPixel(x-1,y+1, qRgb(clr,clr,clr));
 
-            clr = (maxD - qGreen(tmp_img.pixel(x+1,y+1))) * 1.414 * a;
+            clr = (maxD - qGreen(tmp_img.pixel(x+1,y+1))) * 1.414;
             tmp_img.setPixel(x+1,y+1, qRgb(clr,clr,clr));
 
-            clr = (maxD - qGreen(tmp_img.pixel(x,y-1))) * a;
+            clr = (maxD - qGreen(tmp_img.pixel(x,y-1)));
             tmp_img.setPixel(x,y-1, qRgb(clr,clr,clr));
 
-            clr = (maxD - qGreen(tmp_img.pixel(x-1,y))) * a;
+            clr = (maxD - qGreen(tmp_img.pixel(x-1,y)));
             tmp_img.setPixel(x-1,y, qRgb(clr,clr,clr));
 
-            clr = (maxD - qGreen(tmp_img.pixel(x+1,y))) * a;
+            clr = (maxD - qGreen(tmp_img.pixel(x+1,y)));
             tmp_img.setPixel(x+1,y, qRgb(clr,clr,clr));
 
-            clr = (maxD - qGreen(tmp_img.pixel(x,y+1))) * a;
+            clr = (maxD - qGreen(tmp_img.pixel(x,y+1)));
             tmp_img.setPixel(x,y+1, qRgb(clr,clr,clr));
         }
     grad_image = tmp_img;
+    qDebug() << "grad image created";
 }
 
 void
@@ -237,6 +238,7 @@ Window:: startScissor()
 
             node_vector.push_back(node);
         }
+    qDebug() << "Node vector initialized";
 }
 
 void
@@ -278,7 +280,7 @@ void
 Window:: onMouseMove(int x, int y)
 {
     if (Init_seed==0) return; //Return if mouse is not clicked
-    qDebug() << "Point" << x << y;
+    //qDebug() << "Point" << x << y;
     int x1 = MIN(x, node_vector[seed_num].col);
     int y1 = MIN(y, node_vector[seed_num].row);
     int x2 = MAX(x, node_vector[seed_num].col);
