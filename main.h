@@ -39,7 +39,7 @@ public:
     Window();
     void connectSignals();
     void openFile(QString filename);
-    void initVector();
+    void initVector(int x1, int y1, int x2, int y2);
 private slots:
     void openFile();
     void getGradientMap();
@@ -47,7 +47,6 @@ private slots:
     void onMousePress(int x, int y);
     void onMouseMove(int x, int y);
 private:
-    int Is_load = 0;
     int Init_seed = 0;
     int Is_start = 0;
     int Is_closed = 0;

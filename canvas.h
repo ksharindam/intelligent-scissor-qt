@@ -2,7 +2,6 @@
 #define CANVAS_H
 
 #include <QLabel>
-//#include <QWidget>
 #include <QMouseEvent>
 
 QT_BEGIN_NAMESPACE
