@@ -14,7 +14,7 @@ QT_BEGIN_NAMESPACE
 #define INF 1000000
 #define XOFFSET 12
 #define YOFFSET 50
-#define CLOSETHRES 40
+#define CLOSETHRES 6
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
 
@@ -37,9 +37,7 @@ class Window : public QMainWindow, Ui_MainWindow
 public:
     Canvas *canvas;
     Window();
-    void connectSignals();
     void openFile(QString filename);
-    void initVector(int x1, int y1, int x2, int y2);
 private slots:
     void openFile();
     void getGradientMap();
@@ -49,7 +47,7 @@ private slots:
 private:
     int Init_seed = 0;
     int Is_start = 0;
-    int Is_closed = 0;
+    bool is_closed = false;
     QImage image;
     QImage grad_image;
     int seed_num;
@@ -57,9 +55,14 @@ private:
     int seed_y;
 
     vector<struct Node> node_vector;
-    //vector<QPoint> seed_vector;         // contains seed points (where mouse is clicked)
-    //vector<vector<QPoint> > fullPath_vector;
+    vector<QPoint> seed_vector;         // contains seed points (where mouse is clicked)
     vector<QPoint> shortPath_vector;    // path from target point to seed point
+    vector<vector<QPoint>> fullPath_vector; // vector of shortPath_vectors
+
+    void connectSignals();
+    void initVector(int x1, int y1, int x2, int y2);
+    void closeDetect(int x, int y);
+    void getMask(int x, int y);
 };
 
 QT_END_NAMESPACE
