@@ -81,7 +81,7 @@ Window:: onMousePress(int x, int y)
             seed_y = y;
             seed_vector.push_back(QPoint(x,y));
         }
-        qDebug() << "click" << x << y;
+        //qDebug() << "click" << x << y;
     }
 }
 
@@ -146,24 +146,23 @@ Window:: onMouseMove(int x, int y)
 
     priority_queue<Node> que;
     que.push(node_vector[seed_num]);
+    int count =0;
     while (!que.empty())
     {
+        count++;
         Node q = que.top();                 // This is node with minimum total cost
         que.pop();
         if (node_vector[q.num].state == EXPANDED)
             continue;
         q.state = EXPANDED;
         node_vector[q.num].state = EXPANDED;
-        //qDebug() << "q.num" << q.num;
-        if (q.col < x1 || q.row < y1 || q.col > x2 || q.row > y2)
-            continue;
         //q.row q.col = boundry
         //if(q.row == 0 || q.col == 0 || q.row == image.height() - 1 || q.col == image.width() - 1) // ignore if the pixel is at boundary
         //    continue;
         for (int i = -1 ;i <= 1;i++)         // Iterate y from y-1 to y+1
             for (int j = -1 ;j <= 1;j++)     // Iterate x from x-1 to x+1
             {
-                if (i == 0 && j==0) // ignore if the point is q
+                if (i == 0 && j==0) // Skip if the point is q
                     continue;
                 // Skip when neighbour is outside bounding box
                 if (q.col+j < x1 || q.row+i < y1 || q.col+j > x2 || q.row+i > y2)
@@ -201,8 +200,9 @@ Window:: onMouseMove(int x, int y)
     //qDebug() << "path done";
     Node des_node = node_vector[(y-y1) * (x2-x1+1) + (x-x1)];
     QImage line_image = image.copy();
+    QPen pen(Qt::red, 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
     QPainter painter(&line_image);
-    painter.setPen(Qt::black);
+    painter.setPen(pen);
     shortPath_vector.clear();
     shortPath_vector.push_back(QPoint(des_node.col,des_node.row));
     while (des_node.prevNodeNum != seed_num)
@@ -250,7 +250,7 @@ Window:: getMask(int x, int y)
             mask.setPixel(pt, Qt::black);
         }
     }
-    mask.save("mask.png");
+    //mask.save("mask.png");
 }
 
 // Store link costs as pixel color
@@ -463,10 +463,9 @@ floodfill(QImage &img, int x, int y)
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
-    //app.setOrganizationName("QmageView");
-    //app.setApplicationName("QmageView");
     Window *win = new Window();
-    win->openFile("/home/subha/J2.jpg");
+    win->resize(640, 600);
+    win->openFile("/home/subha/Arindam.jpg");
     win->show();
     return app.exec();
 }
