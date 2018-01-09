@@ -1,11 +1,11 @@
 #include "main.h"
 #include <QApplication>
 #include <QFileDialog>
-#include <cmath>
 #include <QPainter>
+#include <QBitmap>
 #include <QDebug>
+#include <cmath>
 #include <chrono>
-void floodfill(QImage &img, int x, int y);
 
 Window:: Window()
 {
@@ -15,12 +15,16 @@ Window:: Window()
     canvas = new Canvas(this);
     layout->addWidget(canvas);
     connectSignals();
+    init_seed = 0;
+    is_start = 0;
+    is_closed = 0;
 }
 
 void
 Window:: connectSignals()
 {
     connect(actionOpen, SIGNAL(triggered()), this, SLOT(openFile()));
+    connect(actionSave, SIGNAL(triggered()), this, SLOT(saveFile()));
     connect(actionQuit, SIGNAL(triggered()), this, SLOT(close()));
     connect(actionStart_Scissor, SIGNAL(triggered()), this, SLOT(startScissor()));
     connect(canvas, SIGNAL(mousePressed(int, int)), this, SLOT(onMousePress(int, int)));
@@ -31,7 +35,7 @@ void
 Window:: openFile()
 {
     QString filename = QFileDialog::getOpenFileName(this, "Open Image", "",
-                "Image files (*.jpg *.png );;All files (*.*)" );
+                "Image files (*.jpg *.png );;JPG Images (*.jpg *.jpeg);;PNG Images (*.png);;All files (*.*)" );
     if (!filename.isEmpty())
         openFile(filename);
 }
@@ -44,9 +48,18 @@ Window:: openFile(QString filename)
 
     image = new_image;
     canvas->setImage(image);
-    Init_seed = 0;
-    Is_start = 0;
-    is_closed = false;
+    init_seed = 0;
+    is_start = 0;
+    is_closed = 0;
+}
+
+void
+Window:: saveFile()
+{
+    QString filename = QFileDialog::getSaveFileName(this, "Save Image", "",
+                "Image files (*.jpg *.png );;JPG Images (*.jpg *.jpeg);;PNG Images (*.png);;All files (*.*)" );
+    if (!filename.isEmpty())
+        canvas->pixmap()->save(filename);
 }
 
 void
@@ -55,26 +68,25 @@ Window:: startScissor()
     if (canvas->pixmap()->isNull())
         return;
     getGradientMap();
-    Is_start = 1;
+    is_start = 1;
 }
 
 void
 Window:: onMousePress(int x, int y)
 {
-    if(Is_start)
+    if(is_start)
     {
         if (is_closed) {
             getMask(x, y);
         }
-        if(!Init_seed)  // First mouse click after loading image
+        if(!init_seed)  // First mouse click after loading image
         {
             seed_vector.clear();
-            Init_seed = 1;
+            init_seed = 1;
         }
         else {
             closeDetect(x, y);
             fullPath_vector.push_back(shortPath_vector);
-            image = canvas->pixmap()->toImage();    // Save old image with livewire, a temp sol
         }
         if (! is_closed) {
             seed_x = x;
@@ -134,7 +146,7 @@ Window:: initVector(int x1, int y1, int x2, int y2)
 void
 Window:: onMouseMove(int x, int y)
 {
-    if (Init_seed==0 or is_closed==1) return; //Return if mouse is not clicked
+    if (init_seed==0 or is_closed==1) return; //Return if mouse is not clicked
     //qDebug() << "Point" << x << y;
     int x1 = MIN(x, seed_x);
     int y1 = MIN(y, seed_y);
@@ -200,8 +212,25 @@ Window:: onMouseMove(int x, int y)
     //qDebug() << "path done";
     Node des_node = node_vector[(y-y1) * (x2-x1+1) + (x-x1)];
     QImage line_image = image.copy();
-    QPen pen(Qt::red, 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    QPen blue_pen(Qt::blue, 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
     QPainter painter(&line_image);
+    painter.setPen(blue_pen);
+    // Draw fixed lines
+    for (int i=0; i<(int)fullPath_vector.size();i++) {
+        for (int j=1;j<(int)fullPath_vector[i].size();j++) {    // for each shortPath_vector
+            QPoint pt1 = fullPath_vector[i][j-1];
+            QPoint pt2 = fullPath_vector[i][j];
+            painter.drawLine(pt1,pt2);
+        }
+    }
+    // Draw seed points
+    painter.setPen(Qt::black);
+    for (int i=0;i<(int)seed_vector.size();i++) {    // for each shortPath_vector
+        QPoint pt = seed_vector[i];
+        painter.drawEllipse(pt.x()-3, pt.y()-3, 6,6);
+    }
+    // Draw movable last line (livewire)
+    QPen pen(Qt::red, 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
     painter.setPen(pen);
     shortPath_vector.clear();
     shortPath_vector.push_back(QPoint(des_node.col,des_node.row));
@@ -236,6 +265,7 @@ Window:: closeDetect(int x, int y)
     if (closed) {
         onMouseMove(point_x, point_y);
         is_closed = true;
+        statusbar->showMessage("Click inside boundary to get Image", 5000);
     }
 }
 
@@ -250,6 +280,17 @@ Window:: getMask(int x, int y)
             mask.setPixel(pt, Qt::black);
         }
     }
+    floodfill(mask, x, y);
+    for (int i=0; i<(int)fullPath_vector.size();i++) {
+        for (int j=0;j<(int)fullPath_vector[i].size();j++) {    // for each shortPath_vector
+            QPoint pt = fullPath_vector[i][j];
+            mask.setPixel(pt, Qt::white);
+        }
+    }
+    QPixmap pm = QPixmap::fromImage(image);
+    pm.setMask(QBitmap::fromImage(mask));
+    canvas->setPixmap(pm);
+    //pm.save("out.jpg");
     //mask.save("mask.png");
 }
 
@@ -418,7 +459,7 @@ floodfill(QImage &img, int x, int y)
   int h = img.height();
   vector<QPoint> q;
   QRgb oldColor = qRgb(255, 255, 255);
-  QRgb newColor = qRgb(0, 255, 0);
+  QRgb newColor = qRgb(0, 0, 0);
   //if (oldColor == newColor) return;
   bool spanAbove, spanBelow;
 

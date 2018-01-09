@@ -12,8 +12,6 @@ QT_BEGIN_NAMESPACE
 #define ACTIVE 1
 #define EXPANDED 2
 #define INF 1000000
-#define XOFFSET 12
-#define YOFFSET 50
 #define CLOSETHRES 6
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
@@ -40,14 +38,15 @@ public:
     void openFile(QString filename);
 private slots:
     void openFile();
+    void saveFile();
     void getGradientMap();
     void startScissor();
     void onMousePress(int x, int y);
     void onMouseMove(int x, int y);
 private:
-    int Init_seed = 0;
-    int Is_start = 0;
-    bool is_closed = false;
+    bool init_seed;     // If first seed placed
+    bool is_start;
+    bool is_closed;     // If boundary is closed
     QImage image;
     QImage grad_image;
     int seed_num;
@@ -64,6 +63,8 @@ private:
     void closeDetect(int x, int y);
     void getMask(int x, int y);
 };
+
+void floodfill(QImage &img, int x, int y);
 
 QT_END_NAMESPACE
 #endif // MAIN_H
