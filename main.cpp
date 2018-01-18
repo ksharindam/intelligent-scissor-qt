@@ -82,6 +82,7 @@ Window:: onMousePress(int x, int y)
         if(!init_seed)  // First mouse click after loading image
         {
             seed_vector.clear();
+            fullPath_vector.clear();
             init_seed = 1;
         }
         else {
@@ -129,7 +130,8 @@ Window:: initVector(int x1, int y1, int x2, int y2)
                         if (l == 0 && m ==0)
                             node.linkCost[cnt]=0;
                         else
-                            node.linkCost[cnt] = qRed(grad_image.pixel(x+m,y+l)); //grad_image.at<Vec3b>(x+l,y+m)[0]
+                            //node.linkCost[cnt] = grad_image.pixel(x+m,y+l); // slower, hence alternative is used
+                            node.linkCost[cnt] = qRed(((QRgb*)grad_image.constScanLine(y+l))[x+m]); // faster
                         cnt++;
                     }
 
@@ -147,13 +149,12 @@ void
 Window:: onMouseMove(int x, int y)
 {
     if (init_seed==0 or is_closed==1) return; //Return if mouse is not clicked
-    //qDebug() << "Point" << x << y;
+    // Get bounding box of livewire
     int x1 = MIN(x, seed_x);
     int y1 = MIN(y, seed_y);
     int x2 = MAX(x, seed_x);
     int y2 = MAX(y, seed_y);
-    //qDebug() << x1 << y1 << x2 << y2;
-    //if (x2==x1 or y2==y1) return; // box width and height must not be zero
+
     initVector(x1,y1,x2,y2);
 
     priority_queue<Node> que;
@@ -168,9 +169,6 @@ Window:: onMouseMove(int x, int y)
             continue;
         q.state = EXPANDED;
         node_vector[q.num].state = EXPANDED;
-        //q.row q.col = boundry
-        //if(q.row == 0 || q.col == 0 || q.row == image.height() - 1 || q.col == image.width() - 1) // ignore if the pixel is at boundary
-        //    continue;
         for (int i = -1 ;i <= 1;i++)         // Iterate y from y-1 to y+1
             for (int j = -1 ;j <= 1;j++)     // Iterate x from x-1 to x+1
             {
@@ -179,7 +177,6 @@ Window:: onMouseMove(int x, int y)
                 // Skip when neighbour is outside bounding box
                 if (q.col+j < x1 || q.row+i < y1 || q.col+j > x2 || q.row+i > y2)
                     continue;
-                //qDebug() << "neighbour" << neighbour;
                 // r is a neighbour of q
                 Node r = node_vector[(q.row + i - y1) * (x2-x1+1) + (q.col + j -x1)];
                 if (r.state == INITIAL)      // INITIAL means nothing has done yet
@@ -209,7 +206,7 @@ Window:: onMouseMove(int x, int y)
                 }
             }
     }
-    //qDebug() << "path done";
+
     Node des_node = node_vector[(y-y1) * (x2-x1+1) + (x-x1)];
     QImage line_image = image.copy();
     QPen blue_pen(Qt::blue, 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
@@ -225,7 +222,7 @@ Window:: onMouseMove(int x, int y)
     }
     // Draw seed points
     painter.setPen(Qt::black);
-    for (int i=0;i<(int)seed_vector.size();i++) {    // for each shortPath_vector
+    for (int i=0;i<(int)seed_vector.size();i++) {    // for each seeds
         QPoint pt = seed_vector[i];
         painter.drawEllipse(pt.x()-3, pt.y()-3, 6,6);
     }
@@ -281,8 +278,9 @@ Window:: getMask(int x, int y)
         }
     }
     floodfill(mask, x, y);
+    // Erase the boundary line by putting white points
     for (int i=0; i<(int)fullPath_vector.size();i++) {
-        for (int j=0;j<(int)fullPath_vector[i].size();j++) {    // for each shortPath_vector
+        for (int j=0;j<(int)fullPath_vector[i].size();j++) {
             QPoint pt = fullPath_vector[i][j];
             mask.setPixel(pt, Qt::white);
         }
@@ -290,19 +288,19 @@ Window:: getMask(int x, int y)
     QPixmap pm = QPixmap::fromImage(image);
     pm.setMask(QBitmap::fromImage(mask));
     canvas->setPixmap(pm);
-    //pm.save("out.jpg");
-    //mask.save("mask.png");
 }
+
+
 
 // Store link costs as pixel color
 void
 Window:: getGradientMap()
 {
-    QImage tmp_img((image.width() - 2 ) * 3, (image.height() - 2) * 3, QImage::Format_RGB888 );
+    QImage tmp_img((image.width() - 2 ) * 3, (image.height() - 2) * 3, QImage::Format_ARGB32 );
     tmp_img.fill(Qt::white);
     double maxD = 0;
     double link = 0;
-    int pxl0, pxl1, pxl2, pxl3, pxl4, pxl5, pxl6, pxl7;
+    QRgb pxl0, pxl1, pxl2, pxl3, pxl4, pxl5, pxl6, pxl7;
     QImage img = image;
     auto start = chrono::steady_clock::now();
     for(int i = 1 ;i < image.height() - 1; i++)
@@ -310,15 +308,18 @@ Window:: getGradientMap()
         {
             int y = (i-1) * 3 + 1;
             int x = (j-1) * 3 + 1;
+            QRgb *row0 = (QRgb*)img.constScanLine(i-1);
+            QRgb *row1 = (QRgb*)img.constScanLine(i);
+            QRgb *row2 = (QRgb*)img.constScanLine(i+1);
+            pxl0 = row1[ j+1];       //  Neighbours are oriented in this pattern
+            pxl1 = row0[ j+1];     //  _____________
+            pxl2 = row0[ j];       //  | 3 | 2 | 1 |
+            pxl3 = row0[ j-1];     //  | 4 |   | 0 |
+            pxl4 = row1[ j-1];     //  | 5 | 6 | 7 |
+            pxl5 = row2[ j-1];     //  -------------
+            pxl6 = row2[ j];
+            pxl7 = row2[ j+1];
 
-            pxl0 = img.pixel(j+1, i);       //  Neighbours are oriented in this pattern
-            pxl1 = img.pixel(j+1, i-1);     //  _____________
-            pxl2 = img.pixel(j, i-1);       //  | 3 | 2 | 1 |
-            pxl3 = img.pixel(j-1, i-1);     //  | 4 |   | 0 |
-            pxl4 = img.pixel(j-1, i);       //  | 5 | 6 | 7 |
-            pxl5 = img.pixel(j-1, i+1);     //  -------------
-            pxl6 = img.pixel(j, i+1);
-            pxl7 = img.pixel(j+1, i+1);
             //x-1,y-1
             double sum = 0;
             sum += pow( qRed(pxl4) - qRed(pxl2), 2);
@@ -327,7 +328,7 @@ Window:: getGradientMap()
             link = sqrt(sum / 6.0);
             if (link > maxD)
                 maxD = link;
-            tmp_img.setPixel(x-1, y-1, qRgb(link, link, link));
+            ((QRgb*)tmp_img.scanLine(y-1))[x-1] = qRgb(link, link, link);
 
             //x-1,y+1
             sum = 0;
@@ -338,7 +339,7 @@ Window:: getGradientMap()
             link = sqrt(sum / 6.0);
             if (link > maxD)
                 maxD = link;
-            tmp_img.setPixel(x-1, y+1, qRgb(link, link, link));
+            ((QRgb*)tmp_img.scanLine(y+1))[x-1] = qRgb(link, link, link);
 
             //x+1,y-1
             sum = 0;
@@ -349,7 +350,7 @@ Window:: getGradientMap()
             link = sqrt(sum / 6.0);
             if (link > maxD)
                 maxD = link;
-            tmp_img.setPixel(x+1, y-1, qRgb(link, link, link));
+            ((QRgb*)tmp_img.scanLine(y-1))[x+1] = qRgb(link, link, link);
 
             //x+1,y+1
             sum = 0;
@@ -360,7 +361,7 @@ Window:: getGradientMap()
             link = sqrt(sum / 6.0);
             if (link > maxD)
                 maxD = link;
-            tmp_img.setPixel(x+1, y+1, qRgb(link, link, link));
+            ((QRgb*)tmp_img.scanLine(y+1))[x+1] = qRgb(link, link, link);
 
             //x-1,y
             sum = 0;
@@ -371,7 +372,7 @@ Window:: getGradientMap()
             link = sqrt(sum / 3.0);
             if (link > maxD)
                 maxD = link;
-            tmp_img.setPixel(x-1, y, qRgb(link, link, link));
+            ((QRgb*)tmp_img.scanLine(y))[x-1] = qRgb(link, link, link);
 
             //x,y-1
             sum = 0;
@@ -382,7 +383,7 @@ Window:: getGradientMap()
             link = sqrt(sum / 3.0);
             if (link > maxD)
                 maxD = link;
-            tmp_img.setPixel(x, y-1, qRgb(link, link, link));
+            ((QRgb*)tmp_img.scanLine(y-1))[x] = qRgb(link, link, link);
 
             //x,y+1
             sum = 0;
@@ -393,7 +394,7 @@ Window:: getGradientMap()
             link = sqrt(sum / 3.0);
             if (link > maxD)
                 maxD = link;
-            tmp_img.setPixel(x, y+1, qRgb(link, link, link));
+            ((QRgb*)tmp_img.scanLine(y+1))[x] = qRgb(link, link, link);
 
             //x+1,y
             sum = 0;
@@ -404,12 +405,10 @@ Window:: getGradientMap()
             link = sqrt(sum / 3.0);
             if (link > maxD)
                 maxD = link;
-            tmp_img.setPixel(x+1, y, qRgb(link, link, link));
+            ((QRgb*)tmp_img.scanLine(y))[x+1] = qRgb(link, link, link);
+
         }
 
-    auto end = chrono::steady_clock::now();
-    double elapse = chrono::duration_cast<chrono::milliseconds>(end-start).count();
-    qDebug() << "gradient maxD =" << maxD << "Time :" << elapse;
 
     //update cost
     //double a = 1.0;
@@ -418,35 +417,38 @@ Window:: getGradientMap()
         {
             int y = (i-1) * 3 + 1;
             int x = (j-1) * 3 + 1;
-            //tmp_img.setPixel(x,y, qRgb(255, 255, 255));
             int clr;
 
-            clr = (maxD - qRed(tmp_img.pixel(x-1,y-1))) * 1.414;
-            tmp_img.setPixel(x-1,y-1, qRgb(clr,clr,clr));
+            clr = (maxD - qRed(((QRgb*)tmp_img.constScanLine(y-1))[x-1])) * 1.414;
+            ((QRgb*)tmp_img.scanLine(y-1))[x-1] = qRgb(clr,clr,clr);
 
-            clr = (maxD - qRed(tmp_img.pixel(x+1,y-1))) * 1.414;
-            tmp_img.setPixel(x+1,y-1, qRgb(clr, clr, clr));
+            clr = (maxD - qRed(((QRgb*)tmp_img.constScanLine(y-1))[x+1])) * 1.414;
+            ((QRgb*)tmp_img.scanLine(y-1))[x+1] = qRgb(clr,clr,clr);
 
-            clr = (maxD - qRed(tmp_img.pixel(x-1,y+1))) * 1.414;
-            tmp_img.setPixel(x-1,y+1, qRgb(clr,clr,clr));
+            clr = (maxD - qRed(((QRgb*)tmp_img.constScanLine(y+1))[x-1])) * 1.414;
+            ((QRgb*)tmp_img.scanLine(y+1))[x-1] = qRgb(clr,clr,clr);
 
-            clr = (maxD - qRed(tmp_img.pixel(x+1,y+1))) * 1.414;
-            tmp_img.setPixel(x+1,y+1, qRgb(clr,clr,clr));
+            clr = (maxD - qRed(((QRgb*)tmp_img.constScanLine(y+1))[x+1])) * 1.414;
+            ((QRgb*)tmp_img.scanLine(y+1))[x+1] = qRgb(clr,clr,clr);
 
-            clr = (maxD - qRed(tmp_img.pixel(x,y-1)));
-            tmp_img.setPixel(x,y-1, qRgb(clr,clr,clr));
+            clr = (maxD - qRed(((QRgb*)tmp_img.constScanLine(y-1))[x]));
+            ((QRgb*)tmp_img.scanLine(y-1))[x] = qRgb(clr,clr,clr);
 
-            clr = (maxD - qRed(tmp_img.pixel(x-1,y)));
-            tmp_img.setPixel(x-1,y, qRgb(clr,clr,clr));
+            clr = (maxD - qRed(((QRgb*)tmp_img.constScanLine(y))[x-1]));
+            ((QRgb*)tmp_img.scanLine(y))[x-1] = qRgb(clr,clr,clr);
 
-            clr = (maxD - qRed(tmp_img.pixel(x+1,y)));
-            tmp_img.setPixel(x+1,y, qRgb(clr,clr,clr));
+            clr = (maxD - qRed(((QRgb*)tmp_img.constScanLine(y))[x+1]));
+            ((QRgb*)tmp_img.scanLine(y))[x+1] = qRgb(clr,clr,clr);
 
-            clr = (maxD - qRed(tmp_img.pixel(x,y+1)));
-            tmp_img.setPixel(x,y+1, qRgb(clr,clr,clr));
+            clr = (maxD - qRed(((QRgb*)tmp_img.constScanLine(y+1))[x]));
+            ((QRgb*)tmp_img.scanLine(y+1))[x] = qRgb(clr,clr,clr);
+
         }
+    auto end = chrono::steady_clock::now();
+    double elapse = chrono::duration_cast<chrono::milliseconds>(end-start).count();
+    qDebug() << "gradient maxD =" << maxD << "Time :" << elapse;
+
     grad_image = tmp_img;
-    qDebug() << "grad image created";
 }
 
 /* Stack Based Scanline Floodfill 
