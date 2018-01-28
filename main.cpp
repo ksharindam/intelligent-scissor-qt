@@ -282,7 +282,7 @@ Window:: getMask(int x, int y)
     for (int i=0; i<(int)fullPath_vector.size();i++) {
         for (int j=0;j<(int)fullPath_vector[i].size();j++) {
             QPoint pt = fullPath_vector[i][j];
-            mask.setPixel(pt, Qt::white);
+            mask.setPixel(pt, qRgb(255,255,255));
         }
     }
     QPixmap pm = QPixmap::fromImage(image);
@@ -303,14 +303,15 @@ Window:: getGradientMap()
     QRgb pxl0, pxl1, pxl2, pxl3, pxl4, pxl5, pxl6, pxl7;
     QImage img = image;
     auto start = chrono::steady_clock::now();
-    for(int i = 1 ;i < image.height() - 1; i++)
-        for(int j = 1; j < image.width() - 1; j++)
+    for (int i = 1 ;i < image.height() - 1; i++) {
+        QRgb *row0 = (QRgb*)img.constScanLine(i-1);
+        QRgb *row1 = (QRgb*)img.constScanLine(i);
+        QRgb *row2 = (QRgb*)img.constScanLine(i+1);
+        int y = (i-1) * 3 + 1;
+        for (int j = 1; j < image.width() - 1; j++)
         {
-            int y = (i-1) * 3 + 1;
             int x = (j-1) * 3 + 1;
-            QRgb *row0 = (QRgb*)img.constScanLine(i-1);
-            QRgb *row1 = (QRgb*)img.constScanLine(i);
-            QRgb *row2 = (QRgb*)img.constScanLine(i+1);
+
             pxl0 = row1[ j+1];       //  Neighbours are oriented in this pattern
             pxl1 = row0[ j+1];     //  _____________
             pxl2 = row0[ j];       //  | 3 | 2 | 1 |
@@ -408,42 +409,45 @@ Window:: getGradientMap()
             ((QRgb*)tmp_img.scanLine(y))[x+1] = qRgb(link, link, link);
 
         }
-
+    }
 
     //update cost
-    //double a = 1.0;
-    for(int i = 1 ;i < image.height() - 1; i++)
-        for(int j = 1; j < image.width() - 1; j++)
+    for (int i = 1 ;i < image.height() - 1; i++) {
+        int y = (i-1) * 3 + 1;
+        QRgb* row0 = (QRgb*)tmp_img.constScanLine(y-1);
+        QRgb* row1 = (QRgb*)tmp_img.constScanLine(y);
+        QRgb* row2 = (QRgb*)tmp_img.constScanLine(y+1);
+        for (int j = 1; j < image.width() - 1; j++)
         {
-            int y = (i-1) * 3 + 1;
             int x = (j-1) * 3 + 1;
             int clr;
 
-            clr = (maxD - qRed(((QRgb*)tmp_img.constScanLine(y-1))[x-1])) * 1.414;
+            clr = (maxD - qRed(row0[x-1])) * 1.414;
             ((QRgb*)tmp_img.scanLine(y-1))[x-1] = qRgb(clr,clr,clr);
 
-            clr = (maxD - qRed(((QRgb*)tmp_img.constScanLine(y-1))[x+1])) * 1.414;
+            clr = (maxD - qRed(row0[x+1])) * 1.414;
             ((QRgb*)tmp_img.scanLine(y-1))[x+1] = qRgb(clr,clr,clr);
 
-            clr = (maxD - qRed(((QRgb*)tmp_img.constScanLine(y+1))[x-1])) * 1.414;
+            clr = (maxD - qRed(row2[x-1])) * 1.414;
             ((QRgb*)tmp_img.scanLine(y+1))[x-1] = qRgb(clr,clr,clr);
 
-            clr = (maxD - qRed(((QRgb*)tmp_img.constScanLine(y+1))[x+1])) * 1.414;
+            clr = (maxD - qRed(row2[x+1])) * 1.414;
             ((QRgb*)tmp_img.scanLine(y+1))[x+1] = qRgb(clr,clr,clr);
 
-            clr = (maxD - qRed(((QRgb*)tmp_img.constScanLine(y-1))[x]));
+            clr = (maxD - qRed(row0[x]));
             ((QRgb*)tmp_img.scanLine(y-1))[x] = qRgb(clr,clr,clr);
 
-            clr = (maxD - qRed(((QRgb*)tmp_img.constScanLine(y))[x-1]));
+            clr = (maxD - qRed(row1[x-1]));
             ((QRgb*)tmp_img.scanLine(y))[x-1] = qRgb(clr,clr,clr);
 
-            clr = (maxD - qRed(((QRgb*)tmp_img.constScanLine(y))[x+1]));
+            clr = (maxD - qRed(row1[x+1]));
             ((QRgb*)tmp_img.scanLine(y))[x+1] = qRgb(clr,clr,clr);
 
-            clr = (maxD - qRed(((QRgb*)tmp_img.constScanLine(y+1))[x]));
+            clr = (maxD - qRed(row2[x]));
             ((QRgb*)tmp_img.scanLine(y+1))[x] = qRgb(clr,clr,clr);
 
         }
+    }
     auto end = chrono::steady_clock::now();
     double elapse = chrono::duration_cast<chrono::milliseconds>(end-start).count();
     qDebug() << "gradient maxD =" << maxD << "Time :" << elapse;
